@@ -2,10 +2,7 @@
 {
     public class Venta
     {
-        public Venta()
-        {
-            DetalleVenta = new List<DetalleVenta>();  // Inicialización de la lista
-        }
+      
         public int IdVenta { get; set; }
         public string? NumeroDocumento { get; set; } // Número de factura o documento único
         public string? TipoPago { get; set; } // Efectivo o Transferencia

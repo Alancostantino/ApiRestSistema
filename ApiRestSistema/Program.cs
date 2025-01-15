@@ -14,6 +14,15 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IVentaRepositorio, VentaRepositorio>();
 // Add services to the container.
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowBlazor", policy =>
+    {
+        policy.WithOrigins("https://localhost:7058") // Cambia al puerto de tu Blazor Server
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -32,5 +41,5 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
-
+app.UseCors("AllowBlazor");
 app.Run();

@@ -29,9 +29,7 @@ namespace ApiRestSistema.Services
                     {
                         foreach (DetalleVenta dv in entidad.DetalleVenta)
                         {
-                            Product producto_encontrado = await context.Vehiculos
-                                .Where(p => p.Id == dv.IdProducto)
-                                .FirstOrDefaultAsync();
+                            Product producto_encontrado = await context.Vehiculos.Where(p => p.Id == dv.IdProducto).FirstAsync();
 
                             if (producto_encontrado != null)
                             {
