@@ -17,50 +17,44 @@ namespace ApiRestSistema.Services
 
         public async Task<Venta> Registrar(Venta entidad)
         {
-            Venta VentaGenerada = new Venta();
-
-            // Crear una nueva instancia de DataContext usando el DbContextFactory
             using (var context = _dbContextFactory.CreateDbContext())
             {
                 using (var transaction = await context.Database.BeginTransactionAsync())
                 {
-                    int CantidadDigitos = 4;
                     try
                     {
-                        foreach (DetalleVenta dv in entidad.DetalleVenta)
+                        // Verificar si ya existe un registro en NumeroDocumento
+                        var correlativo = await context.NumeroDocumentos.FirstOrDefaultAsync();
+                        if (correlativo == null)
                         {
-                            Product producto_encontrado = await context.Vehiculos.Where(p => p.Id == dv.IdProducto).FirstAsync();
-
-                            if (producto_encontrado != null)
+                            // Si no existe, crear un nuevo registro
+                            correlativo = new NumeroDocumento
                             {
-                                producto_encontrado.Estado = "Reservado"; // O "Vendido"
-                                context.Vehiculos.Update(producto_encontrado);
-                            }
+                                UltimoNumero = 1, // O el número inicial que desees
+                                FechaRegistro = DateTime.Now
+                            };
+                            await context.NumeroDocumentos.AddAsync(correlativo);
+                            await context.SaveChangesAsync();
+                        }
+                        else
+                        {
+                            // Si existe, incrementar el número
+                            correlativo.UltimoNumero++;
+                            correlativo.FechaRegistro = DateTime.Now;
+                            context.NumeroDocumentos.Update(correlativo);
+                            await context.SaveChangesAsync();
                         }
 
-                        await context.SaveChangesAsync();
-
-                        // Generar el número de documento en el servicio
-                        NumeroDocumento correlativo = context.NumeroDocumentos.First();
-
-                        correlativo.UltimoNumero = correlativo.UltimoNumero + 1;
-                        correlativo.FechaRegistro = DateTime.Now;
-
-                        context.NumeroDocumentos.Update(correlativo);
-                        await context.SaveChangesAsync();
-
-                        string ceros = string.Concat(Enumerable.Repeat("0", CantidadDigitos));
-                        string numeroVenta = ceros + correlativo.UltimoNumero.ToString();
-                        numeroVenta = numeroVenta.Substring(numeroVenta.Length - CantidadDigitos, CantidadDigitos);
-
+                        // Generar el número de venta
+                        string numeroVenta = correlativo.UltimoNumero.ToString("D4");
                         entidad.NumeroDocumento = numeroVenta;
 
+                        // Guardar la venta
                         await context.Ventas.AddAsync(entidad);
                         await context.SaveChangesAsync();
 
-                        VentaGenerada = entidad;
-
                         await transaction.CommitAsync();
+                        return entidad;
                     }
                     catch (Exception)
                     {
@@ -69,8 +63,6 @@ namespace ApiRestSistema.Services
                     }
                 }
             }
-
-            return VentaGenerada;
         }
 
         public async Task<List<Venta>> Historial(string buscarPor, string numeroVenta, string fechaInicio, string fechaFin)
@@ -135,6 +127,36 @@ namespace ApiRestSistema.Services
                     .ToListAsync();
             }
         }
+
+        public async Task<DetalleVenta> RegistrarDetalle(DetalleVenta detalle)
+        {
+            using (var context = _dbContextFactory.CreateDbContext())
+            {
+                var venta = await context.Ventas.FindAsync(detalle.IdVenta);
+                if (venta == null)
+                {
+                    throw new ArgumentException("La venta especificada no existe.");
+                }
+
+                // Actualizar el estado del producto
+                var producto = await context.Vehiculos.FindAsync(detalle.IdProducto);
+                if (producto == null)
+                {
+                    throw new ArgumentException("El producto especificado no existe.");
+                }
+
+                producto.Estado = "Reservado"; // O "Vendido"
+                context.Vehiculos.Update(producto);
+
+                // Agregar el detalle de la venta
+                await context.DetalleVenta.AddAsync(detalle);
+                await context.SaveChangesAsync();
+
+                return detalle;
+            }
+        }
+
+
     }
 
 }

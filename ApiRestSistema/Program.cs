@@ -2,6 +2,7 @@ using ApiRestSistema.Data;
 using ApiRestSistema.Interfaces;
 using ApiRestSistema.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,7 @@ builder.Services.AddDbContextFactory<DataContext>(options =>
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IVentaRepositorio, VentaRepositorio>();
 // Add services to the container.
+
 
 builder.Services.AddCors(options =>
 {

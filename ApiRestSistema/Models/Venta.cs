@@ -8,6 +8,6 @@
         public string? TipoPago { get; set; } // Efectivo o Transferencia
         public DateTime? FechaRegistro { get; set; } = DateTime.Now;
         public decimal? Total { get; set; }
-        public virtual ICollection<DetalleVenta> DetalleVenta { get; } = new List<DetalleVenta>();
+        public virtual ICollection<DetalleVenta> DetalleVenta { get; set; } = new List<DetalleVenta>();
     }
 }

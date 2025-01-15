@@ -19,9 +19,9 @@ namespace ApiRestSistema.Controllers
         [HttpPost("registrar")]
         public async Task<IActionResult> Registrar([FromBody] Venta venta)
         {
-            if (venta == null || venta.DetalleVenta == null || !venta.DetalleVenta.Any())
+            if (venta == null)
             {
-                return BadRequest("La venta o sus detalles no son válidos.");
+                return BadRequest("La venta no es válida.");
             }
 
             try
@@ -76,6 +76,25 @@ namespace ApiRestSistema.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new { mensaje = "Error al generar el reporte.", detalle = ex.Message });
+            }
+        }
+
+        [HttpPost("registrar-detalle")]
+        public async Task<IActionResult> RegistrarDetalle([FromBody] DetalleVenta detalle)
+        {
+            if (detalle == null)
+            {
+                return BadRequest("El detalle de venta no es válido.");
+            }
+
+            try
+            {
+                var detalleRegistrado = await _ventaRepositorio.RegistrarDetalle(detalle);
+                return Ok(detalleRegistrado);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { mensaje = "Error al registrar el detalle de venta.", detalle = ex.Message });
             }
         }
     }
