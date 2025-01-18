@@ -8,155 +8,74 @@ namespace ApiRestSistema.Services
 {
     public class VentaRepositorio : IVentaRepositorio
     {
-        private readonly IDbContextFactory<DataContext> _dbContextFactory;
+        private readonly DataContext _context;
 
-        public VentaRepositorio(IDbContextFactory<DataContext> dbContextFactory)
+        public VentaRepositorio(DataContext context)
         {
-            _dbContextFactory = dbContextFactory;
+            _context = context;
         }
 
-        public async Task<Venta> Registrar(Venta entidad)
+        public async Task<Venta> Registrar(Venta venta)
         {
-            using (var context = _dbContextFactory.CreateDbContext())
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                using (var transaction = await context.Database.BeginTransactionAsync())
-                {
-                    try
-                    {
-                        // Verificar si ya existe un registro en NumeroDocumento
-                        var correlativo = await context.NumeroDocumentos.FirstOrDefaultAsync();
-                        if (correlativo == null)
-                        {
-                            // Si no existe, crear un nuevo registro
-                            correlativo = new NumeroDocumento
-                            {
-                                UltimoNumero = 1, // O el número inicial que desees
-                                FechaRegistro = DateTime.Now
-                            };
-                            await context.NumeroDocumentos.AddAsync(correlativo);
-                            await context.SaveChangesAsync();
-                        }
-                        else
-                        {
-                            // Si existe, incrementar el número
-                            correlativo.UltimoNumero++;
-                            correlativo.FechaRegistro = DateTime.Now;
-                            context.NumeroDocumentos.Update(correlativo);
-                            await context.SaveChangesAsync();
-                        }
+                var ultimoNumeroVenta = await _context.Ventas
+                    .OrderByDescending(v => v.IdVenta)
+                    .Select(v => v.NumeroVenta)
+                    .FirstOrDefaultAsync();
 
-                        // Generar el número de venta
-                        string numeroVenta = correlativo.UltimoNumero.ToString("D4");
-                        entidad.NumeroDocumento = numeroVenta;
+                int nuevoNumeroVenta = string.IsNullOrEmpty(ultimoNumeroVenta) ? 1 : int.Parse(ultimoNumeroVenta) + 1;
+                venta.NumeroVenta = nuevoNumeroVenta.ToString("D4");
+                venta.FechaRegistro = DateTime.Now;
 
-                        // Guardar la venta
-                        await context.Ventas.AddAsync(entidad);
-                        await context.SaveChangesAsync();
+                await _context.Ventas.AddAsync(venta);
+                await _context.SaveChangesAsync();
 
-                        await transaction.CommitAsync();
-                        return entidad;
-                    }
-                    catch (Exception)
-                    {
-                        await transaction.RollbackAsync();
-                        throw;
-                    }
-                }
+                var vehiculo = await _context.Vehiculos.FindAsync(venta.IdVehiculo);
+                if (vehiculo == null)
+                    throw new ArgumentException($"El vehículo con ID {venta.IdVehiculo} no existe.");
+
+                if (vehiculo.Estado == "Reservado")
+                    throw new InvalidOperationException($"El vehículo {vehiculo.Marca} {vehiculo.Modelo} ya está reservado.");
+
+                vehiculo.Estado = "Reservado";
+                _context.Vehiculos.Update(vehiculo);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return venta;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
             }
         }
 
-        public async Task<List<Venta>> Historial(string buscarPor, string numeroVenta, string fechaInicio, string fechaFin)
+        public async Task<List<Venta>> Historial(string numeroVenta, string fechaInicio, string fechaFin)
         {
-            using (var context = _dbContextFactory.CreateDbContext())
+            IQueryable<Venta> query = _context.Ventas.Include(v => v.Vehiculo);
+
+            if (!string.IsNullOrWhiteSpace(numeroVenta))
             {
-                IQueryable<Venta> query = context.Ventas;
-
-                // Validación de parámetros
-                if (buscarPor == "NumeroDocumento" && string.IsNullOrWhiteSpace(numeroVenta))
-                {
-                    throw new ArgumentException("El número de venta es obligatorio cuando se busca por número de documento.");
-                }
-
-                if (buscarPor == "fecha")
-                {
-                    // Parseo de fechas con manejo de errores
-                    DateTime fech_Inicio;
-                    DateTime fech_Fin;
-
-                    bool inicioValido = DateTime.TryParseExact(fechaInicio, "dd/MM/yyyy", new CultureInfo("es-PE"), DateTimeStyles.None, out fech_Inicio);
-                    bool finValido = DateTime.TryParseExact(fechaFin, "dd/MM/yyyy", new CultureInfo("es-PE"), DateTimeStyles.None, out fech_Fin);
-
-                    if (!inicioValido || !finValido)
-                    {
-                        throw new ArgumentException("Las fechas proporcionadas no tienen un formato válido. Asegúrese de usar el formato dd/MM/yyyy.");
-                    }
-
-                    // Filtrar por fecha
-                    query = query.Where(v => v.FechaRegistro.HasValue &&
-                                             v.FechaRegistro.Value >= fech_Inicio.Date &&
-                                             v.FechaRegistro.Value <= fech_Fin.Date);
-                }
-                else if (buscarPor == "NumeroDocumento" && !string.IsNullOrWhiteSpace(numeroVenta))
-                {
-                    // Filtrar por número de documento
-                    query = query.Where(v => v.NumeroDocumento == numeroVenta);
-                }
-                else
-                {
-                    throw new ArgumentException("Parámetros de búsqueda no válidos. Asegúrese de que 'buscarPor' sea 'NumeroDocumento' o 'fecha'.");
-                }
-
-                // Incluir detalles de la venta y productos relacionados
-                return await query.Include(dv => dv.DetalleVenta)
-                                  .ThenInclude(p => p.IdProductoNavigation)
-                                  .ToListAsync();
+                query = query.Where(v => v.NumeroVenta == numeroVenta);
             }
+
+            if (DateTime.TryParse(fechaInicio, out var fechaInicioParsed))
+            {
+                query = query.Where(v => v.FechaRegistro >= fechaInicioParsed);
+            }
+
+            if (DateTime.TryParse(fechaFin, out var fechaFinParsed))
+            {
+                query = query.Where(v => v.FechaRegistro <= fechaFinParsed);
+            }
+
+            return await query.ToListAsync();
         }
 
-        public async Task<List<DetalleVenta>> Reporte(string FechaInicio, string FechaFin)
-        {
-            using (var context = _dbContextFactory.CreateDbContext())
-            {
-                DateTime fech_Inicio = DateTime.ParseExact(FechaInicio, "dd/MM/yyyy", new CultureInfo("es-PE"));
-                DateTime fech_Fin = DateTime.ParseExact(FechaFin, "dd/MM/yyyy", new CultureInfo("es-PE"));
-
-                return await context.DetalleVenta
-                    .Include(p => p.IdProductoNavigation)
-                    .Include(v => v.IdVentaNavigation)
-                    .Where(dv => dv.IdVentaNavigation.FechaRegistro.Value.Date >= fech_Inicio.Date && dv.IdVentaNavigation.FechaRegistro.Value.Date <= fech_Fin.Date)
-                    .ToListAsync();
-            }
-        }
-
-        public async Task<DetalleVenta> RegistrarDetalle(DetalleVenta detalle)
-        {
-            using (var context = _dbContextFactory.CreateDbContext())
-            {
-                var venta = await context.Ventas.FindAsync(detalle.IdVenta);
-                if (venta == null)
-                {
-                    throw new ArgumentException("La venta especificada no existe.");
-                }
-
-                // Actualizar el estado del producto
-                var producto = await context.Vehiculos.FindAsync(detalle.IdProducto);
-                if (producto == null)
-                {
-                    throw new ArgumentException("El producto especificado no existe.");
-                }
-
-                producto.Estado = "Reservado"; // O "Vendido"
-                context.Vehiculos.Update(producto);
-
-                // Agregar el detalle de la venta
-                await context.DetalleVenta.AddAsync(detalle);
-                await context.SaveChangesAsync();
-
-                return detalle;
-            }
-        }
-
-
+        
     }
-
 }

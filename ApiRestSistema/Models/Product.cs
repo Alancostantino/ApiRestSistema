@@ -12,7 +12,7 @@
         public required decimal Precio { get; set; }
         public required DateTime FechaIngreso { get; set; }
         public required string Estado { get; set; }
-        public virtual ICollection<DetalleVenta> DetalleVenta { get; } = new List<DetalleVenta>();
+        
 
     }
 }

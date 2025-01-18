@@ -4,9 +4,10 @@ namespace ApiRestSistema.Interfaces
 {
     public interface IVentaRepositorio
     {
-        Task<Venta> Registrar(Venta entidad);
-        Task<List<Venta>> Historial(string buscarPor, string numeroVenta, string fechaInicio, string fechaFin);
-        Task<List<DetalleVenta>> Reporte(string FechaInicio, string FechaFin);
-        Task<DetalleVenta> RegistrarDetalle(DetalleVenta detalle);
+        Task<Venta> Registrar(Venta venta); // Registrar una nueva venta
+        Task<List<Venta>> Historial(string numeroVenta, string fechaInicio, string fechaFin); // Obtener historial de ventas
+        
+
     }
+
 }

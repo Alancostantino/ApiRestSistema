@@ -1,6 +1,7 @@
 ﻿using ApiRestSistema.Interfaces;
 using ApiRestSistema.Models;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 
 namespace ApiRestSistema.Controllers
 {
@@ -15,88 +16,36 @@ namespace ApiRestSistema.Controllers
             _ventaRepositorio = ventaRepositorio;
         }
 
-        // Endpoint para registrar una venta
         [HttpPost("registrar")]
-        public async Task<IActionResult> Registrar([FromBody] Venta venta)
+        public async Task<IActionResult> RegistrarVenta([FromBody] Venta venta)
         {
-            if (venta == null)
-            {
-                return BadRequest("La venta no es válida.");
-            }
+            if (venta == null) return BadRequest("La venta no puede ser nula.");
 
             try
             {
-                var ventaGenerada = await _ventaRepositorio.Registrar(venta);
-                return Ok(ventaGenerada);
+                var ventaRegistrada = await _ventaRepositorio.Registrar(venta);
+                return CreatedAtAction(nameof(RegistrarVenta), new { id = ventaRegistrada.IdVenta }, ventaRegistrada);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { mensaje = "Error al registrar la venta.", detalle = ex.Message });
+                return StatusCode(500, $"Error interno: {ex.Message}");
             }
         }
 
-        // Endpoint para obtener el historial de ventas
         [HttpGet("historial")]
-        public async Task<IActionResult> Historial([FromQuery] string buscarPor, [FromQuery] string numeroVenta, [FromQuery] string fechaInicio, [FromQuery] string fechaFin)
+        public async Task<IActionResult> Historial(string numeroVenta = null, string fechaInicio = null, string fechaFin = null)
         {
-            // Log o depuración para verificar el valor de numeroVenta
-            Console.WriteLine($"numeroVenta: {numeroVenta}");
-
             try
             {
-                // Si se busca por fecha, no es necesario número de venta
-                if (buscarPor == "fecha" && string.IsNullOrEmpty(numeroVenta))
-                {
-                    numeroVenta = null; // No es necesario pasar un valor para número de venta
-                }
-
-                var historial = await _ventaRepositorio.Historial(buscarPor, numeroVenta, fechaInicio, fechaFin);
+                var historial = await _ventaRepositorio.Historial(numeroVenta, fechaInicio, fechaFin);
                 return Ok(historial);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { mensaje = "Error al obtener el historial de ventas.", detalle = ex.Message });
+                return StatusCode(500, $"Error interno: {ex.Message}");
             }
         }
 
-        // Endpoint para generar un reporte de ventas
-        [HttpGet("reporte")]
-        public async Task<IActionResult> Reporte([FromQuery] string fechaInicio, [FromQuery] string fechaFin)
-        {
-            if (string.IsNullOrWhiteSpace(fechaInicio) || string.IsNullOrWhiteSpace(fechaFin))
-            {
-                return BadRequest("Las fechas de inicio y fin son obligatorias.");
-            }
-
-            try
-            {
-                var reporte = await _ventaRepositorio.Reporte(fechaInicio, fechaFin);
-                return Ok(reporte);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { mensaje = "Error al generar el reporte.", detalle = ex.Message });
-            }
-        }
-
-        [HttpPost("registrar-detalle")]
-        public async Task<IActionResult> RegistrarDetalle([FromBody] DetalleVenta detalle)
-        {
-            if (detalle == null)
-            {
-                return BadRequest("El detalle de venta no es válido.");
-            }
-
-            try
-            {
-                var detalleRegistrado = await _ventaRepositorio.RegistrarDetalle(detalle);
-                return Ok(detalleRegistrado);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { mensaje = "Error al registrar el detalle de venta.", detalle = ex.Message });
-            }
-        }
+        
     }
-
 }
